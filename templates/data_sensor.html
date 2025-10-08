@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Data Sensor - IoT System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Data Sensor</h1>
+    </div>
+</div>
+
+<!-- Search and Filter Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form class="row g-3">
+                    <div class="col-md-4">
+                        <label for="search" class="form-label">Tìm kiếm</label>
+                        <input type="text" class="form-control" id="search" placeholder="Tìm kiếm theo ID, nhiệt độ, độ ẩm, ánh sáng hoặc thời gian">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="filter" class="form-label">Bộ lọc</label>
+                        <select class="form-select" id="filter">
+                            <option value="">Tất cả</option>
+                            <option value="temperature">Nhiệt độ</option>
+                            <option value="humidity">Độ ẩm</option>
+                            <option value="light">Ánh sáng</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="time" class="form-label">Thời gian</label>
+                        <input type="text" class="form-control" id="time" placeholder="Thời gian (hh:mm:ss dd/mm/yyyy)">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary d-block">
+                            <i class="fas fa-search"></i> Tìm kiếm
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Data Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>
+                                    ID 
+                                    <i class="fas fa-sort-up"></i>
+                                    <i class="fas fa-sort-down"></i>
+                                </th>
+                                <th>
+                                    Nhiệt độ (°C)
+                                    <i class="fas fa-sort-up"></i>
+                                    <i class="fas fa-sort-down"></i>
+                                </th>
+                                <th>
+                                    Độ ẩm (%)
+                                    <i class="fas fa-sort-up"></i>
+                                    <i class="fas fa-sort-down"></i>
+                                </th>
+                                <th>
+                                    Ánh sáng (đơn vị)
+                                    <i class="fas fa-sort-up"></i>
+                                    <i class="fas fa-sort-down"></i>
+                                </th>
+                                <th>
+                                    Thời gian
+                                    <i class="fas fa-sort-up"></i>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if sensor_data %}
+                                {% for data in sensor_data %}
+                                <tr>
+                                    <td>{{ loop.index + ((page - 1) * per_page) }}</td>
+                                    <td>{{ data.temperature or 'N/A' }}</td>
+                                    <td>{{ data.humidity or 'N/A' }}</td>
+                                    <td>{{ data.light or 'N/A' }}</td>
+                                    <td>
+                                        <span class="badge bg-danger me-1">●</span>
+                                        {% if data.timestamp %}
+                                            {% if data.timestamp.tzinfo %}
+                                                {{ data.timestamp.astimezone().strftime('%H:%M %d/%m/%Y') }}
+                                            {% else %}
+                                                {# Assume it's UTC and convert to VN time (+7 hours) #}
+                                                {% set vn_time = data.timestamp + timedelta(hours=7) %}
+                                                {{ vn_time.strftime('%H:%M %d/%m/%Y') }}
+                                            {% endif %}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        <i class="fas fa-database fa-2x mb-2"></i><br>
+                                        Chưa có dữ liệu cảm biến
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <p class="text-muted">
+            Hiển thị {{ ((page - 1) * per_page) + 1 }}-{{ min(page * per_page, total) }} trong tổng số {{ total }} kết quả
+        </p>
+        <select class="form-select d-inline-block w-auto">
+            <option value="10" {% if per_page == 10 %}selected{% endif %}>10 kết quả</option>
+            <option value="20" {% if per_page == 20 %}selected{% endif %}>20 kết quả</option>
+            <option value="50" {% if per_page == 50 %}selected{% endif %}>50 kết quả</option>
+        </select>
+    </div>
+    <div class="col-md-6">
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-end">
+                {% if page > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page - 1 }}">Previous</a>
+                </li>
+                {% endif %}
+                
+                {% set total_pages = (total / per_page) | round(0, 'ceil') | int %}
+                {% for p in range(max(1, page - 2), min(total_pages + 1, page + 3)) %}
+                <li class="page-item {% if p == page %}active{% endif %}">
+                    <a class="page-link" href="?page={{ p }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+                
+                {% if page < total_pages %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page + 1 }}">Next</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Search and filter functionality
+document.getElementById('search').addEventListener('input', function() {
+    const searchTerm = this.value.toLowerCase();
+    const rows = document.querySelectorAll('tbody tr');
+    
+    rows.forEach(row => {
+        if (row.cells.length > 1) { // Skip empty state row
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(searchTerm) ? '' : 'none';
+        }
+    });
+});
+
+// Filter by sensor type
+document.getElementById('filter').addEventListener('change', function() {
+    const filterValue = this.value.toLowerCase();
+    const rows = document.querySelectorAll('tbody tr');
+    
+    rows.forEach(row => {
+        if (row.cells.length > 1) { // Skip empty state row
+            if (filterValue === '') {
+                row.style.display = '';
+            } else {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(filterValue) ? '' : 'none';
+            }
+        }
+    });
+});
+
+// Time filter
+document.getElementById('time').addEventListener('input', function() {
+    const timeValue = this.value.toLowerCase();
+    const rows = document.querySelectorAll('tbody tr');
+    
+    rows.forEach(row => {
+        if (row.cells.length > 1) { // Skip empty state row
+            if (timeValue === '') {
+                row.style.display = '';
+            } else {
+                const timeCell = row.cells[4]; // Time column
+                if (timeCell) {
+                    const timeText = timeCell.textContent.toLowerCase();
+                    row.style.display = timeText.includes(timeValue) ? '' : 'none';
+                }
+            }
+        }
+    });
+});
+
+// Real-time updates
+const socket = io();
+
+socket.on('sensor_data_update', function(data) {
+    if (data) {
+        // Add new row to the top of the table
+        const tbody = document.querySelector('tbody');
+        
+        // Remove empty state row if exists
+        const emptyRow = tbody.querySelector('td[colspan]');
+        if (emptyRow) {
+            emptyRow.parentElement.remove();
+        }
+        
+        const newRow = document.createElement('tr');
+        const now = new Date();
+        const timeString = now.toLocaleTimeString('vi-VN') + ' ' + now.toLocaleDateString('vi-VN');
+        
+        newRow.innerHTML = `
+            <td>${tbody.children.length + 1}</td>
+            <td>${data.temperature || 'N/A'}</td>
+            <td>${data.humidity || 'N/A'}</td>
+            <td>${data.light || 'N/A'}</td>
+            <td><span class="badge bg-danger me-1">●</span>${timeString}</td>
+        `;
+        
+        tbody.insertBefore(newRow, tbody.firstChild);
+        
+        // Remove last row if too many rows
+        if (tbody.children.length > 10) {
+            tbody.removeChild(tbody.lastChild);
+        }
+    }
+});
+</script>
+{% endblock %}

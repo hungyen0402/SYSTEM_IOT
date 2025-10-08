@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Hồ sơ người dùng - IoT System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h1 class="mb-4">Hồ sơ</h1>
+        
+        <div class="card profile-card">
+            <div class="card-body text-center">
+                <!-- Avatar Section -->
+                <div class="mb-4">
+                    <div class="profile-avatar-container">
+                        <img src="C:\Users\hoang\Documents\BTL_IOT\static\images\IMG_8408.jpeg" 
+                             alt="Avatar" 
+                             class="rounded-circle border border-3 border-primary shadow-lg profile-avatar"
+                             id="profileAvatar">
+                        <div class="avatar-status-indicator" title="Đang hoạt động"></div>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-primary avatar-change-btn" onclick="changeAvatar()">
+                            <i class="fas fa-camera me-1"></i>
+                            Đổi ảnh đại diện
+                        </button>
+                    </div>
+                </div>
+                
+                <h5 class="card-title mb-4">Thông tin cá nhân</h5>
+                
+                <div class="profile-info-row row mb-3">
+                    <div class="col-md-4">
+                        <strong class="profile-label">Họ và tên:</strong>
+                    </div>
+                    <div class="col-md-8 profile-value">
+                        Hoàng Đức Hưng
+                    </div>
+                </div>
+                
+                <div class="profile-info-row row mb-3">
+                    <div class="col-md-4">
+                        <strong class="profile-label">Mã sinh viên:</strong>
+                    </div>
+                    <div class="col-md-8 profile-value">
+                        B22DCCN408
+                    </div>
+                </div>
+                
+                <div class="profile-info-row row mb-3">
+                    <div class="col-md-4">
+                        <strong class="profile-label">Link GitHub:</strong>
+                    </div>
+                    <div class="col-md-8">
+                        <a href="https://github.com/hungyen0402/IOTSYSTEM.git" target="_blank" class="github-link">
+                            <i class="fab fa-github me-2"></i>
+                            https://github.com/hungyen0402/IOTSYSTEM.git
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="profile-info-row row mb-3">
+                    <div class="col-md-4">
+                        <strong class="profile-label">Dự án:</strong>
+                    </div>
+                    <div class="col-md-8 profile-value">
+                        Hệ thống IoT điều khiển thiết bị thông minh
+                    </div>
+                </div>
+                
+                <div class="profile-info-row row mb-3">
+                    <div class="col-md-4">
+                        <strong class="profile-label">Công nghệ sử dụng:</strong>
+                    </div>
+                    <div class="col-md-8 profile-value">
+                        Flask, MongoDB, MQTT, ESP32, Bootstrap
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Predefined avatar options
+const avatarOptions = [
+    "https://via.placeholder.com/150/007bff/ffffff?text=HDH",
+    "https://via.placeholder.com/150/28a745/ffffff?text=HH", 
+    "https://via.placeholder.com/150/dc3545/ffffff?text=HD",
+    "https://via.placeholder.com/150/ffc107/000000?text=DH",
+    "https://via.placeholder.com/150/6f42c1/ffffff?text=HĐH",
+    "https://avatars.githubusercontent.com/u/1?v=4",
+    "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
+    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
+    "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face"
+];
+
+let currentAvatarIndex = 0;
+
+function changeAvatar() {
+    // Cycle through avatar options
+    currentAvatarIndex = (currentAvatarIndex + 1) % avatarOptions.length;
+    const avatarImg = document.getElementById('profileAvatar');
+    
+    // Add loading effect
+    avatarImg.style.opacity = '0.5';
+    
+    setTimeout(() => {
+        avatarImg.src = avatarOptions[currentAvatarIndex];
+        avatarImg.style.opacity = '1';
+        
+        // Show notification
+        showNotification('Ảnh đại diện đã được cập nhật!', 'success');
+        
+        // Save to localStorage
+        localStorage.setItem('userAvatar', avatarOptions[currentAvatarIndex]);
+    }, 200);
+}
+
+// Load saved avatar on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const savedAvatar = localStorage.getItem('userAvatar');
+    if (savedAvatar) {
+        document.getElementById('profileAvatar').src = savedAvatar;
+        currentAvatarIndex = avatarOptions.indexOf(savedAvatar);
+        if (currentAvatarIndex === -1) currentAvatarIndex = 0;
+    }
+});
+
+// Function to show notification
+function showNotification(message, type = 'info') {
+    // Create toast notification
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    // Add to container
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container position-fixed top-0 end-0 p-3';
+        document.body.appendChild(container);
+    }
+    
+    container.appendChild(toast);
+    
+    // Initialize and show toast
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    // Remove toast after it's hidden
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
+}
+</script>
+{% endblock %}

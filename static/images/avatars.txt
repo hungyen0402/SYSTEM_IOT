@@ -1,0 +1,16 @@
+# Avatar Images for Profile
+# You can add custom avatar images to this folder
+
+# Default avatar URLs used in the application:
+1. https://via.placeholder.com/150/007bff/ffffff?text=HDH
+2. https://via.placeholder.com/150/28a745/ffffff?text=HH
+3. https://via.placeholder.com/150/dc3545/ffffff?text=HD
+4. https://via.placeholder.com/150/ffc107/000000?text=DH
+5. https://via.placeholder.com/150/6f42c1/ffffff?text=HĐH
+
+# You can also add your own images here:
+# - avatar1.jpg
+# - avatar2.png
+# - etc.
+
+# To use custom images, update the avatarOptions array in profile.html

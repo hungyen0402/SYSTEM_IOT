@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Lịch sử hành động - IoT System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Lịch sử hành động</h1>
+    </div>
+</div>
+
+<!-- Search and Filter Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form class="row g-3" method="GET">
+                    <div class="col-md-3">
+                        <label for="deviceFilter" class="form-label">Thiết bị</label>
+                        <select class="form-select" id="deviceFilter" name="device">
+                            <option value="">Tất cả</option>
+                            {% for device_name in device_names %}
+                            <option value="{{ device_name }}" {% if current_device == device_name %}selected{% endif %}>
+                                {{ device_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="dateFrom" class="form-label">Từ ngày</label>
+                        <input type="date" class="form-control" id="dateFrom" name="date_from" value="{{ current_date_from }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="dateTo" class="form-label">Đến ngày</label>
+                        <input type="date" class="form-control" id="dateTo" name="date_to" value="{{ current_date_to }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary d-block" id="filterBtn">
+                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                            <i class="fas fa-search"></i> Tìm kiếm
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Action History Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Thiết bị</th>
+                                <th>Hành động</th>
+                                <th>Thời gian</th>
+                            </tr>
+                        </thead>
+                        <tbody id="actions-table">
+                            {% if actions %}
+                                {% for action in actions %}
+                                <tr>
+                                    <td>{{ loop.index + ((page - 1) * per_page) }}</td>
+                                    <td>{{ action.device_name }}</td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ action.action_type }}</span>
+                                    </td>
+                                    <td>
+                                        {% if action.timestamp %}
+                                            {% if action.timestamp.tzinfo %}
+                                                {{ action.timestamp.astimezone().strftime('%H:%M:%S %d/%m/%Y') }}
+                                            {% else %}
+                                                {# Assume it's UTC and convert to VN time (+7 hours) #}
+                                                {% set vn_time = action.timestamp + timedelta(hours=7) %}
+                                                {{ vn_time.strftime('%H:%M:%S %d/%m/%Y') }}
+                                            {% endif %}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">
+                                        <i class="fas fa-history fa-2x mb-2"></i><br>
+                                        Chưa có lịch sử hành động
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pagination -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <p class="text-muted">
+            Hiển thị {{ ((page - 1) * per_page) + 1 }}-{{ min(page * per_page, total) }} trong tổng số {{ total }} kết quả
+        </p>
+        <select class="form-select d-inline-block w-auto">
+            <option value="10" {% if per_page == 10 %}selected{% endif %}>10 kết quả</option>
+            <option value="20" {% if per_page == 20 %}selected{% endif %}>20 kết quả</option>
+            <option value="50" {% if per_page == 50 %}selected{% endif %}>50 kết quả</option>
+        </select>
+    </div>
+    <div class="col-md-6">
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-end">
+                {% if page > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page - 1 }}&per_page={{ per_page }}&device={{ current_device }}&date_from={{ current_date_from }}&date_to={{ current_date_to }}">Previous</a>
+                </li>
+                {% endif %}
+                
+                {% set total_pages = ((total - 1) // per_page) + 1 %}
+                {% for p in range(max(1, page - 2), min(total_pages + 1, page + 3)) %}
+                <li class="page-item {% if p == page %}active{% endif %}">
+                    <a class="page-link" href="?page={{ p }}&per_page={{ per_page }}&device={{ current_device }}&date_from={{ current_date_from }}&date_to={{ current_date_to }}">{{ p }}</a>
+                </li>
+                {% endfor %}
+                
+                {% if page < total_pages %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page + 1 }}&per_page={{ per_page }}&device={{ current_device }}&date_from={{ current_date_from }}&date_to={{ current_date_to }}">Next</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Form validation and submission
+document.querySelector('form').addEventListener('submit', function(e) {
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
+    const filterBtn = document.getElementById('filterBtn');
+    const spinner = filterBtn.querySelector('.spinner-border');
+    const icon = filterBtn.querySelector('.fas');
+    
+    // Validate date range
+    if (dateFrom && dateTo) {
+        const fromDate = new Date(dateFrom);
+        const toDate = new Date(dateTo);
+        
+        if (fromDate > toDate) {
+            e.preventDefault();
+            alert('Ngày bắt đầu không thể lớn hơn ngày kết thúc!');
+            return false;
+        }
+        
+        // Check if date range is too large (more than 1 year)
+        const diffTime = Math.abs(toDate - fromDate);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays > 365) {
+            e.preventDefault();
+            alert('Khoảng thời gian tìm kiếm không được vượt quá 1 năm!');
+            return false;
+        }
+    }
+    
+    // Show loading state
+    spinner.classList.remove('d-none');
+    icon.classList.add('d-none');
+    filterBtn.disabled = true;
+});
+
+// Per page dropdown functionality
+document.querySelector('select.form-select').addEventListener('change', function() {
+    const perPage = this.value;
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('per_page', perPage);
+    urlParams.set('page', '1'); // Reset to first page
+    window.location.search = urlParams.toString();
+});
+
+// Clear filters functionality
+function clearFilters() {
+    document.getElementById('deviceFilter').value = '';
+    document.getElementById('dateFrom').value = '';
+    document.getElementById('dateTo').value = '';
+    window.location.href = window.location.pathname;
+}
+
+// Add clear button if filters are active
+window.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasFilters = urlParams.get('device') || urlParams.get('date_from') || urlParams.get('date_to');
+    
+    if (hasFilters) {
+        const filterBtn = document.getElementById('filterBtn');
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'btn btn-outline-secondary ms-2';
+        clearBtn.innerHTML = '<i class="fas fa-times"></i> Xóa bộ lọc';
+        clearBtn.onclick = clearFilters;
+        filterBtn.parentNode.appendChild(clearBtn);
+    }
+});
+
+// Real-time action updates
+const socket = io();
+
+socket.on('device_status_update', function(data) {
+    // Add new action to the top of the table
+    const tbody = document.getElementById('actions-table');
+    
+    // Remove empty state row if exists
+    const emptyRow = tbody.querySelector('td[colspan]');
+    if (emptyRow) {
+        emptyRow.parentElement.remove();
+    }
+    
+    const newRow = document.createElement('tr');
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('vi-VN') + ' ' + now.toLocaleDateString('vi-VN');
+    const actionText = data.status ? 'Bật' : 'Tắt';
+    
+    // Map device types to Vietnamese names
+    const deviceNames = {
+        'led': 'Tất cả LED',
+        'led1': 'LED 1',
+        'led2': 'LED 2',
+        'led3': 'LED 3',
+        'internal_led': 'LED tích hợp'
+    };
+    
+    const deviceName = deviceNames[data.device] || data.device;
+    
+    newRow.innerHTML = `
+        <td>${tbody.children.length + 1}</td>
+        <td>${deviceName}</td>
+        <td><span class="badge bg-primary">${actionText}</span></td>
+        <td>${timeString}</td>
+    `;
+    
+    tbody.insertBefore(newRow, tbody.firstChild);
+    
+    // Remove last row if too many rows
+    if (tbody.children.length > 10) {
+        tbody.removeChild(tbody.lastChild);
+    }
+});
+</script>
+{% endblock %}
