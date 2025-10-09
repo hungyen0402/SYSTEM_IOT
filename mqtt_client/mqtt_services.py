@@ -5,8 +5,7 @@ from config import Config
 from database.models import create_sensor_reading, create_action, update_device_status
 import threading
 import time
-from flask_socketio import emit
-import pytz  # Thêm import nếu chưa có
+import pytz
 
 class MQTTService:
     def __init__(self):
@@ -15,40 +14,43 @@ class MQTTService:
         self.client.on_message = self.on_message
         self.client.on_disconnect = self.on_disconnect
         self.connected = False
-        # self.on_message_callback = None  # Thêm biến để lưu callback
-        self.socketio = None # will be injected from app.py 
+        self.socketio = None
+        # Biến track ESP32 (như bạn thêm)
+        self.esp32_connected = False
+        self.esp_timeout = 20  # Timeout 30 giây
+        self.last_message_time = None
+        self.timeout_timer = None
+
+    def set_socketio(self, socketio_instance):
+        self.socketio = socketio_instance
+        print("✅ MQTT socketio injected")
 
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:
             print(f"Connected to MQTT broker")
             self.connected = True
-            # Subscribe to sensor data from ESP8266
+            # Subscribe topics
             client.subscribe(Config.SENSORS_DATA_TOPIC)
-            # Subscribe to LED state topics (ACK từ ESP)
             client.subscribe(Config.TOPIC_LED1_STATE)
             client.subscribe(Config.TOPIC_LED2_STATE)
             client.subscribe(Config.TOPIC_LED3_STATE)
             client.subscribe(Config.TOPIC_LED_ALL_STATE)
             print(f"Subscribed to {Config.SENSORS_DATA_TOPIC}")
             print(f"Subscribed to LED state topics")
-            # Yêu cầu esp gửi state hiện tại 
+            # Yêu cầu ESP gửi state
             client.publish("esp8266/get_state", "get")
             print("Requested current LED states")
+            # Bắt đầu timer để track ESP (nếu chưa có message)
+            self.start_timeout_timer()
         else:
             print(f"Failed to connect: {rc}")
             
     def on_disconnect(self, client, userdata, rc):
         print(f"Disconnected from MQTT broker: {rc}")
         self.connected = False
-        
-    # **THÊM: Method để set callback từ app.py**
-    # def set_on_message_callback(self, callback):
-    #     """Set callback function để xử lý message từ app.py"""
-    #     self.on_message_callback = callback
-    #     print("✅ MQTT on_message callback set")
-    def set_socketio(self, socketio_instance):
-        self.socketio = socketio_instance
-        print("✅ MQTT socketio injected")
+        self.stop_timeout_timer()
+        self.update_esp_status(False)
+
     def on_message(self, client, userdata, msg):
         try:
             topic = msg.topic
@@ -56,17 +58,47 @@ class MQTTService:
             
             print(f"Received message on {topic}: {payload}")
             
-            # Gọi callback nếu có (thay vì xử lý trực tiếp)
-            # if self.on_message_callback:
-            #     self.on_message_callback(topic, payload)
-            # else:
-            #     # Fallback: xử lý trực tiếp nếu không có callback
-            #     self.handle_message_fallback(topic, payload)
+            # Khi nhận message từ ESP, set online
+            if not msg.retain and topic in [Config.SENSORS_DATA_TOPIC, Config.TOPIC_LED1_STATE, Config.TOPIC_LED2_STATE, Config.TOPIC_LED3_STATE, Config.TOPIC_LED_ALL_STATE]:
+                self.update_esp_status(True)
+            
             self.handle_message_fallback(topic, payload)
         except Exception as e:
             print(f"Error processing message: {e}")
 
-    # **THÊM: Method fallback nếu không có callback**
+    def update_esp_status(self, connected):
+        """Cập nhật trạng thái ESP32 và emit nếu thay đổi"""
+        if self.esp32_connected != connected:
+            self.esp32_connected = connected
+            print(f"ESP32 status changed: {'Online' if connected else 'Offline'}")
+            
+            # Emit qua Socket.IO
+            if self.socketio:
+                self.socketio.emit('esp_status_update', {'connected': connected})
+            
+            if connected:
+                self.start_timeout_timer()
+            else:
+                self.stop_timeout_timer()
+
+    def start_timeout_timer(self):
+        """Bắt đầu timer để detect offline"""
+        self.stop_timeout_timer()
+        self.last_message_time = time.time()
+        self.timeout_timer = threading.Timer(self.esp_timeout, self.check_esp_timeout)
+        self.timeout_timer.start()
+
+    def stop_timeout_timer(self):
+        """Dừng timer"""
+        if self.timeout_timer:
+            self.timeout_timer.cancel()
+            self.timeout_timer = None
+
+    def check_esp_timeout(self):
+        """Kiểm tra offline nếu không message trong esp_timeout"""
+        if time.time() - self.last_message_time >= self.esp_timeout:
+            self.update_esp_status(False)
+
     def handle_message_fallback(self, topic, payload):
         """Xử lý message nếu không có callback từ app.py"""
         try:
@@ -254,6 +286,8 @@ class MQTTService:
     def disconnect(self):
         self.client.loop_stop()
         self.client.disconnect()
+        self.stop_timeout_timer()
+        self.update_esp_status(False)
     
     def publish_device_control(self, topic, message): # hàm pub lệnh bât/tắt led 
         if not self.connected:

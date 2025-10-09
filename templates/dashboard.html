@@ -121,7 +121,8 @@
                     <div class="form-check form-switch m-0">
                         <input class="form-check-input" type="checkbox" id="led1-toggle" 
                                onchange="toggleDevice('led1', this.checked)"
-                               {% if led_status['led1'] %}checked{% endif %}>
+                               {% if led_status['led1'] %}checked{% endif %}
+                               {% if not esp_connected %}disabled{% endif %}>
                     </div>
                 </div>
             </div>
@@ -139,7 +140,8 @@
                     <div class="form-check form-switch m-0">
                         <input class="form-check-input" type="checkbox" id="led2-toggle" 
                                onchange="toggleDevice('led2', this.checked)"
-                               {% if led_status['led2'] %}checked{% endif %}>
+                               {% if led_status['led2'] %}checked{% endif %}
+                               {% if not esp_connected %}disabled{% endif %}>
                     </div>
                 </div>
             </div>
@@ -157,7 +159,8 @@
                     <div class="form-check form-switch m-0">
                         <input class="form-check-input" type="checkbox" id="led3-toggle" 
                                onchange="toggleDevice('led3', this.checked)"
-                               {% if led_status['led3'] %}checked{% endif %}>
+                               {% if led_status['led3'] %}checked{% endif %}
+                               {% if not esp_connected %}disabled{% endif %}>
                     </div>
                 </div>
             </div>
@@ -670,6 +673,18 @@ try {
             const statusText = data.status ? 'bật' : 'tắt';
             const deviceName = data.device_name || data.device;
             showNotification(`${deviceName} đã ${statusText}`, 'success');
+        });
+        socket.on('esp_status_update', function(data) {
+            console.log('ESP status update:', data);
+            const connected = data.connected;
+            const toggles = ['led1-toggle', 'led2-toggle', 'led3-toggle'];
+            toggles.forEach(id => {
+                const toggle = document.getElementById(id);
+                if (toggle) {
+                    toggle.disabled = !connected;
+                }
+            });
+            showNotification(connected ? 'ESP32 đã kết nối' : 'ESP32 mất kết nối', connected ? 'success' : 'warning');
         });
     } else {
         console.warn('Socket.io unavailable, socket features will not work.');

@@ -19,37 +19,10 @@ dash_app = Dash(__name__, server=app, url_base_pathname='/dash/')
 app.jinja_env.globals.update(min=min, max=max, timedelta=timedelta)
 
 # Initialize MQTT service
-
 mqtt_service.connect()
 mqtt_service.set_socketio(socketio)
-# Thêm callback cho MQTT service (giả sử mqtt_service có method để set callback)
-# def on_mqtt_message(topic, payload):
-#     try:
-#         data = json.loads(payload)
-#         vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
-#         timestamp = datetime.now(vn_tz)
-        
-#         # Lưu vào DB
-#         create_sensor_reading(
-#             temperature=data.get('temperature'),
-#             humidity=data.get('humidity'),
-#             light=data.get('light'),
-#             timestamp=timestamp
-#         )
-        
-#         # Emit qua Socket.IO để cập nhật client thời gian thực
-#         socketio.emit('sensor_data_update', {
-#             'temperature': data.get('temperature'),
-#             'humidity': data.get('humidity'),
-#             'light': data.get('light'),
-#             'timestamp': timestamp.isoformat()
-#         })
-        
-#         print(f"MQTT data received and emitted: {data}")
-#     except Exception as e:
-#         print(f"Error processing MQTT message: {e}")
 
-# mqtt_service.set_on_message_callback(on_mqtt_message)  # Giả sử mqtt_service có method này; nếu không, bạn cần implement trong mqtt_services.py
+
 
 dash_app.layout = html.Div([
     html.H3("Biểu đồ cảm biến realtime", style={"textAlign": "center"}),
@@ -224,7 +197,8 @@ def dashboard():
     return render_template('dashboard.html', 
                          latest_data=latest_data,
                          devices=devices,
-                         led_status=led_status)
+                         led_status=led_status,
+                         esp_connected=mqtt_service.esp32_connected)
 
 @app.route('/data-sensor')
 def data_sensor():
