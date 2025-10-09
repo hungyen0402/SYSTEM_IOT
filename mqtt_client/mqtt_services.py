@@ -17,7 +17,7 @@ class MQTTService:
         self.socketio = None
         # Biến track ESP32 (như bạn thêm)
         self.esp32_connected = False
-        self.esp_timeout = 20  # Timeout 30 giây
+        self.esp_timeout = 30  # Timeout 30 giây
         self.last_message_time = None
         self.timeout_timer = None
 
@@ -72,7 +72,21 @@ class MQTTService:
             self.esp32_connected = connected
             print(f"ESP32 status changed: {'Online' if connected else 'Offline'}")
             
-            # Emit qua Socket.IO
+            # Nếu ESP32 disconnect, cập nhật tất cả LED thành OFF
+            if not connected:
+                print("ESP32 disconnected - Setting all LEDs to OFF")
+                led_devices = [
+                    {"id": "led1", "name": "LED 1"},
+                    {"id": "led2", "name": "LED 2"},
+                    {"id": "led3", "name": "LED 3"}
+                ]
+                for led in led_devices:
+                    # Cập nhật trạng thái LED trong database thành OFF
+                    update_device_status(led["id"], False)
+                    # Emit qua Socket.IO để cập nhật UI dashboard
+                    self.emit_device_status_update(led["id"], False, led["name"])
+            
+            # Emit trạng thái ESP32
             if self.socketio:
                 self.socketio.emit('esp_status_update', {'connected': connected})
             
