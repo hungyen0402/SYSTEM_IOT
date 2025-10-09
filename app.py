@@ -202,21 +202,66 @@ def dashboard():
 
 @app.route('/data-sensor')
 def data_sensor():
-    # Get sensor data with pagination
+    # Get parameters from request
     page = request.args.get('page', 1, type=int)
-    per_page = 10
+    per_page = request.args.get('per_page', 10, type=int)
+    search = request.args.get('search', '')
+    filter_type = request.args.get('filter', '')
+    time_string = request.args.get('time_string', '')
     
-    # Get total count
-    total = db.sensor_data.count_documents({})
+    # Build query for filters
+    query = {}
     
-    # Get data with pagination
-    data = list(db.sensor_data.find().sort('timestamp', -1).skip((page-1)*per_page).limit(per_page))
+    # Search by sensor value (assume it's a number, with ±5 tolerance)
+    if search:
+        try:
+            value = float(search)
+            tolerance = 5  # Sai số ±5
+            min_value = value - tolerance
+            max_value = value + tolerance
+            
+            if filter_type == 'temperature':
+                query['temperature'] = {'$gte': min_value, '$lte': max_value}
+            elif filter_type == 'humidity':
+                query['humidity'] = {'$gte': min_value, '$lte': max_value}
+            elif filter_type == 'light':
+                query['light'] = {'$gte': min_value, '$lte': max_value}
+            else:
+                # Search across all sensor types if no specific filter
+                query['$or'] = [
+                    {'temperature': {'$gte': min_value, '$lte': max_value}},
+                    {'humidity': {'$gte': min_value, '$lte': max_value}},
+                    {'light': {'$gte': min_value, '$lte': max_value}}
+                ]
+        except ValueError:
+            # If not a valid number, ignore search
+            pass
+    
+    # Filter by time (YYYY-MM-DD format, filter for the entire day)
+    if time_string:
+        try:
+            filter_date = datetime.strptime(time_string, '%Y-%m-%d').date()
+            start_of_day = datetime.combine(filter_date, datetime.min.time())
+            end_of_day = datetime.combine(filter_date, datetime.max.time())
+            query['timestamp'] = {'$gte': start_of_day, '$lte': end_of_day}
+        except ValueError:
+            # If invalid date, ignore
+            pass
+    
+    # Get total count with filters
+    total = db.sensor_data.count_documents(query)
+    
+    # Get data with pagination and filters
+    data = list(db.sensor_data.find(query).sort('timestamp', -1).skip((page-1)*per_page).limit(per_page))
     
     return render_template('data_sensor.html', 
                          sensor_data=data,
                          page=page,
                          per_page=per_page,
-                         total=total)
+                         total=total,
+                         current_search=search,
+                         current_filter=filter_type,
+                         current_time_string=time_string)
 
 @app.route('/action-history')
 def action_history():
@@ -227,32 +272,28 @@ def action_history():
     date_from = request.args.get('date_from', '')
     date_to = request.args.get('date_to', '')
     
-    # Build query with filters
+    current_device = request.args.get('device', '')
+    current_action = request.args.get('action', '')  # Thêm
+    current_time_string = request.args.get('time_string', '')  # Thêm, thay date_from/date_to
+    
+    # Xử lý filter
     query = {}
+    if current_device:
+        query['device_name'] = current_device
+    if current_action:
+        query['action_type'] = current_action
     
-    # Device filter
-    if device_filter:
-        query['device_name'] = device_filter
-    
-    # Date range filter
-    if date_from or date_to:
-        date_query = {}
-        if date_from:
-            try:
-                from_date = datetime.strptime(date_from, '%Y-%m-%d')
-                date_query['$gte'] = from_date
-            except ValueError:
-                pass
-        if date_to:
-            try:
-                to_date = datetime.strptime(date_to, '%Y-%m-%d')
-                # Add 23:59:59 to include the whole day
-                to_date = to_date.replace(hour=23, minute=59, second=59)
-                date_query['$lte'] = to_date
-            except ValueError:
-                pass
-        if date_query:
-            query['timestamp'] = date_query
+    if current_time_string:
+        try:
+            # Parse time_string (giả sử YYYY-MM-DD)
+            filter_date = datetime.strptime(current_time_string, '%Y-%m-%d').date()
+            # Filter actions trong ngày đó (từ 00:00 đến 23:59)
+            start_of_day = datetime.combine(filter_date, datetime.min.time())
+            end_of_day = datetime.combine(filter_date, datetime.max.time())
+            query['timestamp'] = {'$gte': start_of_day, '$lte': end_of_day}
+        except ValueError:
+            # Nếu invalid, bỏ qua filter
+            pass
     
     # Get total count with filters
     total = db.actions.count_documents(query)
@@ -263,15 +304,15 @@ def action_history():
     # Get unique device names for filter dropdown
     device_names = db.actions.distinct('device_name')
     
-    return render_template('action_history.html',
-                         actions=actions,
-                         page=page,
-                         per_page=per_page,
-                         total=total,
-                         device_names=device_names,
-                         current_device=device_filter,
-                         current_date_from=date_from,
-                         current_date_to=date_to)
+    return render_template('action_history.html', 
+                           actions=actions,
+                           device_names=device_names,
+                           current_device=current_device,
+                           current_action=current_action,  # Thêm
+                           current_time_string=current_time_string,  # Thêm
+                           page=page,
+                           per_page=per_page,
+                           total=total)
 
 @app.route('/profile')
 def profile():
