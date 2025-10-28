@@ -212,40 +212,61 @@ def data_sensor():
     # Build query for filters
     query = {}
     
-    # Search by sensor value (assume it's a number, with ±5 tolerance)
+    # Search by exact sensor value (no tolerance)
     if search:
         try:
             value = float(search)
-            tolerance = 5  # Sai số ±5
-            min_value = value - tolerance
-            max_value = value + tolerance
-            
             if filter_type == 'temperature':
-                query['temperature'] = {'$gte': min_value, '$lte': max_value}
+                query['temperature'] = value
             elif filter_type == 'humidity':
-                query['humidity'] = {'$gte': min_value, '$lte': max_value}
+                query['humidity'] = value
             elif filter_type == 'light':
-                query['light'] = {'$gte': min_value, '$lte': max_value}
+                query['light'] = value
             else:
-                # Search across all sensor types if no specific filter
+                # Exact match across all sensor fields
                 query['$or'] = [
-                    {'temperature': {'$gte': min_value, '$lte': max_value}},
-                    {'humidity': {'$gte': min_value, '$lte': max_value}},
-                    {'light': {'$gte': min_value, '$lte': max_value}}
+                    {'temperature': value},
+                    {'humidity': value},
+                    {'light': value}
                 ]
         except ValueError:
-            # If not a valid number, ignore search
+            # Nếu input không phải số thì bỏ qua search
             pass
     
-    # Filter by time (YYYY-MM-DD format, filter for the entire day)
+    # Filter by time (either full day YYYY-MM-DD or exact time like "14:12:28 10/10/2025")
     if time_string:
+        time_string = time_string.strip()
         try:
-            filter_date = datetime.strptime(time_string, '%Y-%m-%d').date()
-            start_of_day = datetime.combine(filter_date, datetime.min.time())
-            end_of_day = datetime.combine(filter_date, datetime.max.time())
-            query['timestamp'] = {'$gte': start_of_day, '$lte': end_of_day}
-        except ValueError:
-            # If invalid date, ignore
+            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
+            # Nếu có giờ (chứa ':') => parse exact datetime
+            if ':' in time_string:
+                parsed_dt = None
+                # Thử các format phổ biến (ví dụ "14:12:28 10/10/2025" hoặc "2025-10-10 14:12:28")
+                for fmt in ('%H:%M:%S %d/%m/%Y', '%d/%m/%Y %H:%M:%S', '%Y-%m-%d %H:%M:%S', '%H:%M:%S %Y-%m-%d'):
+                    try:
+                        parsed_dt = datetime.strptime(time_string, fmt)
+                        break
+                    except ValueError:
+                        continue
+                if parsed_dt is None: 
+                    # Nếu không match, thử parse ISO
+                    parsed_dt = datetime.fromisoformat(time_string)
+                # Đảm bảo timezone (localize nếu naive)
+                if parsed_dt.tzinfo is None:
+                    parsed_dt = vn_tz.localize(parsed_dt)
+                # Query chính xác cho giây đó: [dt, dt + 1s)
+                query['timestamp'] = {'$gte': parsed_dt, '$lt': parsed_dt + timedelta(seconds=1)}
+            else:
+                # Chỉ ngày (YYYY-MM-DD) => filter toàn ngày như trước
+                filter_date = datetime.strptime(time_string, '%Y-%m-%d').date()
+                start_of_day = datetime.combine(filter_date, datetime.min.time())
+                end_of_day = datetime.combine(filter_date, datetime.max.time())
+                # localize to VN timezone
+                start_of_day = vn_tz.localize(start_of_day)
+                end_of_day = vn_tz.localize(end_of_day)
+                query['timestamp'] = {'$gte': start_of_day, '$lte': end_of_day}
+        except Exception:
+            # Nếu parse fail thì bỏ qua filter thời gian
             pass
     
     # Get total count with filters
@@ -268,9 +289,6 @@ def action_history():
     # Get action history with pagination and filtering
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
-    device_filter = request.args.get('device', '')
-    date_from = request.args.get('date_from', '')
-    date_to = request.args.get('date_to', '')
     
     current_device = request.args.get('device', '')
     current_action = request.args.get('action', '')  # Thêm
@@ -284,16 +302,34 @@ def action_history():
         query['action_type'] = current_action
     
     if current_time_string:
-        try:
-            # Parse time_string (giả sử YYYY-MM-DD)
-            filter_date = datetime.strptime(current_time_string, '%Y-%m-%d').date()
-            # Filter actions trong ngày đó (từ 00:00 đến 23:59)
-            start_of_day = datetime.combine(filter_date, datetime.min.time())
-            end_of_day = datetime.combine(filter_date, datetime.max.time())
-            query['timestamp'] = {'$gte': start_of_day, '$lte': end_of_day}
-        except ValueError:
-            # Nếu invalid, bỏ qua filter
+        current_time_string = current_time_string.strip()
+        try: 
+            vn_tz = pytz.timezone('Asia/Ho_Chi_Minh')
+            # Nếu chứa giờ (:) => parse exact datetime 
+            if ':' in current_time_string:
+                parst_dt = None
+                # Thử các format phổ biến
+                for fmt in ('%H:%M:%S %d/%m/%Y', '%d/%m/%Y %H:%M:%S', '%Y-%m-%d %H:%M:%S', '%H:%M:%S %Y-%m-%d'):
+                    try:
+                        parse_dt = datetime.strptime(current_time_string, fmt)
+                        break
+                    except ValueError:
+                        continue
+                if parse_dt is None:
+                    parse_dt = datetime.fromisoformat(current_time_string)
+                if parse_dt.tzinfo is None:
+                    parse_dt = vn_tz.localize(parse_dt)
+                query['timestamp'] = {'$gte': parse_dt, '$lt': parse_dt + timedelta(seconds=1)}
+            else:
+                filter_day = datetime.strptime(current_time_string, '%Y-%m-%d').date()
+                start_day = datetime.combine(filter_day, datetime.min.time())
+                end_day = datetime.combine(filter_day, datetime.max.time())
+                start_day = vn_tz.localize(start_day)
+                end_day = vn_tz.localize(end_day)
+                query['timestamp'] = {'$gte': start_day, '$lte': end_day}
+        except Exception:
             pass
+            
     
     # Get total count with filters
     total = db.actions.count_documents(query)

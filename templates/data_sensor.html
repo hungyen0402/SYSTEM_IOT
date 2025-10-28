@@ -95,7 +95,7 @@
                                             {% else %}
                                                 {# Assume it's UTC and convert to VN time (+7 hours) #}
                                                 {% set vn_time = data.timestamp + timedelta(hours=7) %}
-                                                {{ vn_time.strftime('%H:%M %d/%m/%Y') }}
+                                                {{ vn_time.strftime('%H:%M:%S %d/%m/%Y') }}
                                             {% endif %}
                                         {% else %}
                                             N/A
