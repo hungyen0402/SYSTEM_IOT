@@ -168,6 +168,61 @@
     </div>
 </div>
 
+<!-- ADD: New controls row (D0, A0) -->
+<div class="row mb-2">
+    <div class="col-md-4">
+        <div class="card led-card-compact">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-lightbulb text-warning"></i>
+                        <span class="ms-2">LED D0</span>
+                    </div>
+                    <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" id="led_d0-toggle" 
+                               onchange="toggleDevice('led_d0', this.checked)"
+                               {% if led_status.get('led_d0') %}checked{% endif %}
+                               {% if not esp_connected %}disabled{% endif %}>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card led-card-compact">
+            <div class="card-body py-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-lightbulb text-warning"></i>
+                        <span class="ms-2">LED A0</span>
+                    </div>
+                    <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" id="led_a0-toggle" 
+                               onchange="toggleDevice('led_a0', this.checked)"
+                               {% if led_status.get('led_a0') %}checked{% endif %}
+                               {% if not esp_connected %}disabled{% endif %}>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- optionally add an empty col to keep layout consistent -->
+    <div class="col-md-4"></div>
+</div>
+
+<!-- ADD: Daily action stats card -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body p-3">
+                <h6 class="card-title mb-2">📋 Thống kê số lần bật/tắt thiết bị trong ngày</h6>
+                <div id="daily-stats-container">
+                    <small class="text-muted">Đang tải thống kê...</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Enhanced Chart Section - CHART.JS -->
 <div class="row">
@@ -703,6 +758,52 @@ try {
 
 } catch (e) {
     console.error('Error initializing dashboard scripts:', e);
+}
+
+/* ---------- New: Daily stats fetch & render ---------- */
+function renderDailyStats(data) {
+    const container = document.getElementById('daily-stats-container');
+    if (!container) return;
+    if (!data || Object.keys(data).length === 0) {
+        container.innerHTML = '<div class="text-muted">Chưa có hành động trong ngày</div>';
+        return;
+    }
+    let html = '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>Thiết bị</th><th>Bật</th><th>Tắt</th></tr></thead><tbody>';
+    for (const [device, counts] of Object.entries(data)) {
+        const onCount = counts['Bật'] || 0;
+        const offCount = counts['Tắt'] || 0;
+        html += `<tr><td>${device}</td><td>${onCount}</td><td>${offCount}</td></tr>`;
+    }
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+function fetchDailyStats() {
+    fetch('/api/daily-action-stats')
+        .then(res => res.json())
+        .then(json => {
+            if (json && json.success) renderDailyStats(json.data);
+        })
+        .catch(err => {
+            console.error('Error fetching daily stats', err);
+        });
+}
+
+/* Call fetchDailyStats at init and on updates */
+document.addEventListener('DOMContentLoaded', async function() {
+    /* ...existing init code... */
+    fetchDailyStats();
+});
+
+/* Refresh stats when device status updates or actions happen */
+if (socket) {
+    socket.on('device_status_update', function(data) {
+        /* existing handler ... */
+        fetchDailyStats();
+    });
+    socket.on('sensor_data_update', function(data) {
+        /* existing handler ... */
+    });
 }
 </script>
 {% endblock %}

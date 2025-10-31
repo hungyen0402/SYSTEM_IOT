@@ -20,7 +20,7 @@ class MQTTService:
         self.esp_timeout = 30  # Timeout 30 giây
         self.last_message_time = None
         self.timeout_timer = None
-
+    # Function để app.py gọi 
     def set_socketio(self, socketio_instance):
         self.socketio = socketio_instance
         print("✅ MQTT socketio injected")
@@ -35,6 +35,9 @@ class MQTTService:
             client.subscribe(Config.TOPIC_LED2_STATE)
             client.subscribe(Config.TOPIC_LED3_STATE)
             client.subscribe(Config.TOPIC_LED_ALL_STATE)
+            # Subscribe new LED state topics
+            client.subscribe(Config.TOPIC_LED_D0_STATE)
+            client.subscribe(Config.TOPIC_LED_A0_STATE)
             print(f"Subscribed to {Config.SENSORS_DATA_TOPIC}")
             print(f"Subscribed to LED state topics")
             # Yêu cầu ESP gửi state
@@ -59,7 +62,16 @@ class MQTTService:
             print(f"Received message on {topic}: {payload}")
             
             # Khi nhận message từ ESP, set online
-            if not msg.retain and topic in [Config.SENSORS_DATA_TOPIC, Config.TOPIC_LED1_STATE, Config.TOPIC_LED2_STATE, Config.TOPIC_LED3_STATE, Config.TOPIC_LED_ALL_STATE]:
+            # include new led state topics so receiving them marks ESP online
+            if not msg.retain and topic in [
+                Config.SENSORS_DATA_TOPIC,
+                Config.TOPIC_LED1_STATE,
+                Config.TOPIC_LED2_STATE,
+                Config.TOPIC_LED3_STATE,
+                Config.TOPIC_LED_ALL_STATE,
+                Config.TOPIC_LED_D0_STATE,
+                Config.TOPIC_LED_A0_STATE
+            ]:
                 self.update_esp_status(True)
             
             self.handle_message_fallback(topic, payload)
@@ -118,7 +130,14 @@ class MQTTService:
         try:
             if topic == Config.SENSORS_DATA_TOPIC:
                 self.handle_sensor_data(payload)
-            elif topic in [Config.TOPIC_LED1_STATE, Config.TOPIC_LED2_STATE, Config.TOPIC_LED3_STATE, Config.TOPIC_LED_ALL_STATE]:
+            elif topic in [
+                Config.TOPIC_LED1_STATE,
+                Config.TOPIC_LED2_STATE,
+                Config.TOPIC_LED3_STATE,
+                Config.TOPIC_LED_ALL_STATE,
+                Config.TOPIC_LED_D0_STATE,
+                Config.TOPIC_LED_A0_STATE
+            ]:
                 self.handle_led_state(topic, payload)
         except Exception as e:
             print(f"Error in fallback message handling: {e}")
@@ -178,6 +197,12 @@ class MQTTService:
             elif topic == Config.TOPIC_LED3_STATE:
                 device_id = "led3"
                 device_name = "LED 3"
+            elif topic == Config.TOPIC_LED_D0_STATE:
+                device_id = "led_d0"
+                device_name = "LED D0"
+            elif topic == Config.TOPIC_LED_A0_STATE:
+                device_id = "led_a0"
+                device_name = "LED A0"
             # elif topic == Config.TOPIC_LED_ALL_STATE:
             #     # Xử lý trạng thái tất cả LED
             #     self.handle_all_led_state(payload)
@@ -338,6 +363,15 @@ class MQTTService:
         # Internal LED có thể sử dụng LED1 topic hoặc tạo topic riêng
         message = "ON" if status else "OFF"
         return self.publish_device_control(Config.TOPIC_LED1, message)
+
+    # New control functions for D0/A0
+    def control_led_d0(self, status):
+        message = "ON" if status else "OFF"
+        return self.publish_device_control(Config.TOPIC_LED_D0, message)
+    
+    def control_led_a0(self, status):
+        message = "ON" if status else "OFF"
+        return self.publish_device_control(Config.TOPIC_LED_A0, message)
 
 # Global MQTT service instance
 mqtt_service = MQTTService()

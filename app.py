@@ -499,6 +499,15 @@ def api_sensor_data_latest():
         }
     })
 
+# Thêm API thống kê số lần Bật/Tắt cho mỗi thiết bị trong ngày
+@app.route('/api/daily-action-stats')
+def api_daily_action_stats():
+    """
+    Trả về thống kê số lần Bật/Tắt cho mỗi thiết bị trong ngày (theo múi giờ VN).
+    """
+    stats = get_today_action_counts()
+    return jsonify({"success": True, "data": stats})
+
 # WebSocket events
 @socketio.on('connect')
 def handle_connect():
